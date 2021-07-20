@@ -43,7 +43,7 @@ func GraphQL(q string) Matcher {
 		if !strings.EqualFold(req.Method, "POST") {
 			return false
 		}
-		if req.URL.Path != "/graphql" {
+		if req.URL.Path != "/graphql" && req.URL.Path != "/api/graphql" {
 			return false
 		}
 
@@ -100,6 +100,17 @@ func FileResponse(filename string) Responder {
 	}
 }
 
+func RESTPayload(responseStatus int, responseBody string, cb func(payload map[string]interface{})) Responder {
+	return func(req *http.Request) (*http.Response, error) {
+		bodyData := make(map[string]interface{})
+		err := decodeJSONBody(req, &bodyData)
+		if err != nil {
+			return nil, err
+		}
+		cb(bodyData)
+		return httpResponse(responseStatus, req, bytes.NewBufferString(responseBody)), nil
+	}
+}
 func GraphQLMutation(body string, cb func(map[string]interface{})) Responder {
 	return func(req *http.Request) (*http.Response, error) {
 		var bodyData struct {
@@ -130,6 +141,19 @@ func GraphQLQuery(body string, cb func(string, map[string]interface{})) Responde
 		cb(bodyData.Query, bodyData.Variables)
 
 		return httpResponse(200, req, bytes.NewBufferString(body)), nil
+	}
+}
+
+func ScopesResponder(scopes string) func(*http.Request) (*http.Response, error) {
+	return func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: 200,
+			Request:    req,
+			Header: map[string][]string{
+				"X-Oauth-Scopes": {scopes},
+			},
+			Body: ioutil.NopCloser(bytes.NewBufferString("")),
+		}, nil
 	}
 }
 
